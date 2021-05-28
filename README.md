@@ -1,8 +1,7 @@
 Created by Eloy Parra Barrero; eloyparra.b@gmail.com; 2021-05-21
 
 Code for the analyses included in:
-### Neuronal sequences during theta rely on behavior-dependent spatial maps
-### (Parra-Barrero, E., Diba, K., Cheng, S., 2021)
+### Neuronal sequences during theta rely on behavior-dependent spatial maps (Parra-Barrero, E., Diba, K., Cheng, S., 2021)
 
 The files in the main folder define the classes used for the analyses included in the paper (and a bit more).
 The files in ./analyze run the analyses. ./analyze also contains the following folders:
