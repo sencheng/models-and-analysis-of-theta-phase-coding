@@ -1,0 +1,14 @@
+{
+  "dataset": "hc-3",
+  "session_set": "gor01-6-13",
+  "session": "2006-6-13_15-22-3",
+  "discarded_intervals": [
+    [0, 36],
+    [815, 1500]
+  ],
+  "lfp_channels": [
+    64,
+    72,
+    88
+  ]
+}

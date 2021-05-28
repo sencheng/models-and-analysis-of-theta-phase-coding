@@ -1,0 +1,18 @@
+{
+  "dataset": "hc-11",
+  "session_set": "Buddy",
+  "session": "Buddy_06272013",
+  "discarded_intervals": [[10710, 10748]],
+  "lfp_channels": [
+    8,
+    24,
+    32,
+    40,
+    48,
+    72,
+    96
+  ],
+  "corner_sizes": [45, 45],
+  "start_cuts": [45, 45],
+  "end_cuts": [20, 20]
+}

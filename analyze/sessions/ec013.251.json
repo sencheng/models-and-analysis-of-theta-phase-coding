@@ -1,0 +1,10 @@
+{
+  "dataset": "hc-3",
+  "session_set": "ec013.21",
+  "session": "ec013.251",
+  "discarded_intervals": [],
+  "lfp_channels": [
+    32,
+    40
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "dataset": "hc-11",
+  "session_set": "Cicero",
+  "session": "Cicero_09172014",
+  "discarded_intervals": [],
+  "lfp_channels": [
+    0,
+    10,
+    20,
+    30,
+    50,
+    64,
+    74,
+    84,
+    94,
+    104,
+    114
+  ],
+  "corner_sizes": [30, 40],
+  "start_cuts": [30, 40],
+  "end_cuts": [5, 5]
+}

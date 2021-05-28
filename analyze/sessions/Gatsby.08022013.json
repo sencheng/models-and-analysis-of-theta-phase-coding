@@ -1,0 +1,14 @@
+{
+  "dataset": "hc-11",
+  "session_set": "Gatsby",
+  "session": "Gatsby_08022013",
+  "discarded_intervals": [],
+  "lfp_channels": [
+    24,
+    32,
+    88,
+    96,
+    104,
+    112
+  ]
+}

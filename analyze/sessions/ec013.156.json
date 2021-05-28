@@ -1,0 +1,17 @@
+{
+  "dataset": "hc-3",
+  "session_set": "ec013.15",
+  "session": "ec013.156",
+  "discarded_intervals": [
+    [
+      965,
+      1100
+    ]
+  ],
+  "lfp_channels": [
+    32,
+    40
+  ],
+  "_phase_shift": 0.0,
+  "phase_shift": 4.0
+}

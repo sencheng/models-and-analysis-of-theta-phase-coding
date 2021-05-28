@@ -1,0 +1,23 @@
+{
+  "dataset": "hc-11",
+  "session_set": "Achilles",
+  "session": "Achilles_10252013",
+  "discarded_intervals": [[0, 18190]],
+  "lfp_channels": [
+    0,
+    10,
+    20,
+    30,
+    40,
+    50,
+    64,
+    74,
+    84,
+    94,
+    104,
+    114
+  ],
+  "corner_sizes": [30, 20],
+  "start_cuts": [30, 20],
+  "end_cuts": [10, 20]
+}

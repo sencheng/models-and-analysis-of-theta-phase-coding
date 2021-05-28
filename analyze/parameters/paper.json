@@ -1,0 +1,238 @@
+{
+  "ALL":
+  {
+    "speed_groups": [[2, 22], [12, 32], [22, 42], [32, 52], [42, 62], [52, 72], [62, 82]],
+    "min_occupancy": 0.3,
+    "min_spread": 0.4
+  },
+
+  "ExpSpikes":
+  {
+    "region": "CA1",
+    "cell_type": "p"
+  },
+
+  "LFP":
+  {
+    "filter_order": 3,
+    "bandpass_frequencies": [4, 12],
+    "phase_from": "hilbert",
+    "pre_shuffling_high_pass_frequency": 1.0,
+    "significance_percentile": 97
+  },
+
+  "Tracking":
+  {
+    "sampling_rate": 39.0625,
+    "back_to_front_progress": 0.5,
+    "speed_sigma": 0.1,
+    "fitting_min_speed_ratio": 0.7,
+    "runs_splitting_in_corner_sigma": 0.2,
+    "runs_splitting_out_of_corner_sigma": 1,
+    "runs_splitting_min_speed":  2,
+    "corner_sizes": [25, 25],
+    "spatial_bin_size": 4,
+    "speed_bin_size": 5,
+    "top_percentile": 100,
+    "bottom_speed_from": "box",
+    "corner_size": 40,
+    "min_central_speed": 10,
+    "median": 0,
+    "min_speed_count_percentile": 1,
+    "acceleration_bin_size": 5
+  },
+
+  "FiringFields":
+  {
+    "firing_rate_sigma": 6,
+    "min_spikes": 25,
+    "min_peak_firing_rate": 2,
+    "firing_rate_threshold": 0.15,
+    "global_threshold": 0.25,
+    "peak_prominence_threshold": 0.333,
+    "consecutive_nans_max": 3
+  },
+
+  "PhaseVsPosition":
+  {
+    "fit_type": "simple_orthogonal",
+    "only_significant_pp": 0,
+    "num_shuffles": 100,
+    "percentile": 5,
+    "normalized_slope_bounds": [-100, 100],
+    "orthogonal_fit_params":
+    {
+      "num_unwrapping_iterations": 3,
+      "mean_error_threshold_factor": 2.5,
+      "min_error_threshold": 0.125,
+      "orthogonal_init": 1,
+      "circular_linear_step": 1,
+      "bottom_corner": [0.5, 0.3],
+      "top_corner": [0.5, 0.7]
+    },
+    "pass_min_speed": 2,
+    "pass_speeds_from": "tracking",
+    "pass_min_spikes": 6,
+    "pass_min_duration": 0.4,
+    "pass_min_spread": 0.4,
+    "pass_max_variation": 0.3,
+    "pooled_min_spikes": 12
+  },
+
+  "Decoder":
+  {
+    "phase_bin_size": 90,
+    "phase_step_size": 30,
+    "min_spikes": 1
+  },
+
+  "PathLengths":
+  {
+    "group_names": ["Everywhere", "Restricted"],
+    "margins_lists": [[0, 0], [0, 0]],
+    "restricted_occupancies": [0, 1],
+    "speed_groups_to_plot": [[2, 22], [22, 42], [42, 62]],
+    "spatial_extent": 70,
+    "min_cycles": 5,
+    "path_decoding": "radon_fit",
+    "hanning_width": 14,
+    "radon_fit_params":
+    {
+      "num_slopes": 30,
+      "slope_bounds": [-0.45, 0.45],
+      "num_intercepts": 20,
+      "intercept_bounds": [-50, 50],
+      "d": 30
+    },
+    "min_peak_prob": 0.1,
+    "min_phase_coverage": 150,
+    "min_phase_extent": 210
+  },
+
+  "CellCoordination":
+  {
+    "min_overlap": 20,
+    "extra_margin": 10,
+    "num_phase_bins": 20,
+    "sample_size": 30
+  },
+
+  "UniformSpikes|Time":
+  {
+    "num_cells": 20,
+    "field_sigma": 7,
+    "ds": 1.0,
+    "dt": 0.002,
+    "phase_range": [0, 360],
+    "phase_current": 180,
+    "theta_distance": 0.0,
+    "theta_time": 0.55,
+    "firing_rate_0": 15,
+    "firing_rate_slope": 0.2,
+    "theta_modulation": 0.35
+  },
+
+  "UniformSpikes|TimeDemo":
+  {
+    "num_cells": 20,
+    "field_sigma": 6,
+    "ds": 1.0,
+    "dt": 0.002,
+    "phase_range": [0, 360],
+    "phase_current": 180,
+    "theta_distance": 0.0,
+    "theta_time": 0.5,
+    "firing_rate_0": 15,
+    "firing_rate_slope": 0.2,
+    "theta_modulation": 0.35
+  },
+
+  "UniformSpikes|Position":
+  {
+    "num_cells": 20,
+    "field_sigma": 7,
+    "ds": 1.0,
+    "dt": 0.002,
+    "phase_range": [0, 360],
+    "phase_current": 180,
+    "theta_distance": 30,
+    "theta_time": 0.0,
+    "firing_rate_0": 15,
+    "firing_rate_slope": 0.2,
+    "theta_modulation": 0.35
+  },
+
+  "UniformSpikes|PositionDemo":
+  {
+    "num_cells": 20,
+    "field_sigma": 6,
+    "ds": 1.0,
+    "dt": 0.002,
+    "phase_range": [0, 360],
+    "phase_current": 180,
+    "theta_distance": 30,
+    "theta_time": 0.0,
+    "firing_rate_0": 15,
+    "firing_rate_slope": 0.2,
+    "theta_modulation": 0.35
+  },
+
+  "VariableSpikes|VariableNoise":
+  {
+    "num_cells": 20,
+    "ds": 1.0,
+    "dt": 0.002,
+    "phase_range": [0, 360],
+    "phase_current": 180,
+    "firing_rate_0": 15,
+    "firing_rate_slope": 0.2,
+    "theta_modulation": 0.35,
+    "fields_from": "characteristic_speed",
+    "theta_d_slope": 0,
+    "theta_d_offset": 35,
+    "theta_d_min": 0,
+    "theta_d_add_sigma": 10,
+    "theta_d_mul_sigma": 0.3,
+    "size_to_theta_d": 0.25,
+    "size_min": 3,
+    "size_add_sigma": 0,
+    "phase_sigma_0": 120,
+    "exponential_factor": -0.025
+  },
+
+  "SpeedSpikes|SpeedDep57":
+  {
+    "num_cells": 20,
+    "ds": 1.0,
+    "dt": 0.002,
+    "phase_range": [0, 360],
+    "phase_current": 180,
+    "firing_rate_0": 15,
+    "firing_rate_slope": 0.2,
+    "theta_modulation": 0.35,
+    "theta_time": 0.57,
+    "multiplicative_sigma": 0.20,
+    "additive_sigma": 10,
+    "size_to_theta_d": 0.3,
+    "size_min": 4,
+    "shift_sigma": 0
+  },
+
+  "SpeedSpikes|BDSweepDemo":
+  {
+    "num_cells": 6,
+    "ds": 1.0,
+    "dt": 0.002,
+    "phase_range": [0, 360],
+    "phase_current": 180,
+    "firing_rate_0": 15,
+    "firing_rate_slope": 0.2,
+    "theta_modulation": 0.35,
+    "theta_time": 0.5,
+    "multiplicative_sigma": 0,
+    "additive_sigma": 0,
+    "size_to_theta_d": 0.25,
+    "size_min": 3,
+    "shift_sigma": 0
+  }
+}
