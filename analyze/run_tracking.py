@@ -20,6 +20,7 @@ def run_tracking(tracking):
 
 if __name__ == '__main__':
 
+    session = "ec013.156"
     # session = "ec013.388"
     # session = "ec013.395"
     # session = "ec013.412"
@@ -27,7 +28,7 @@ if __name__ == '__main__':
     # session = "ec014.639"
     # session = "ec016.233"
 
-    session = "vvp01.1815"
+    # session = "vvp01.1815"
     # session = "gor01.1216"
 
     # session = "Achilles.10252013_alt"

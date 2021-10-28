@@ -22,11 +22,8 @@ def run_phase_vs_position(phase_vs_position):
     print(0)
     phase_vs_position.pool_all(full_speed_groups=speed_groups, fit_type=p['fit_type'], min_spikes=p['pooled_min_spikes'],
                                pool_by_pass_speed=False, spike_speed_threshold=False, min_occupancy=p['min_occupancy'],
-                               min_spread=p['min_spread'], plot_fits=True, plot_occupancy=True,
-                               fig_size=(12, 9),
+                               min_spread=p['min_spread'], plot_fits=True, plot_occupancy=True, fig_size=(18*cm, 13*cm),
                                # fields_per_plot=3, field_nums=(8, 20, 22), fig_size=(7.8*cm, 10.1*cm), constrained_layout=0
-                               # fields_per_plot=4, field_nums=(1, 6, 11, 16), fig_size=(8.5*cm, 10.1*cm), constrained_layout=0
-                               # fields_per_plot=4, field_nums=(5, 22, 24, 26), fig_size=(8.5 * cm, 10.1 * cm), constrained_layout=0
                                )
 
     # single passes for one field
@@ -50,7 +47,7 @@ def run_phase_vs_position(phase_vs_position):
 
 if __name__ == '__main__':
     # session = "ec013.156"
-    session = "ec013.454"  # fields 4 and 16 nice for single passes
+    session = "ec013.454"  # fields 4 and 16 nice for single passes; also nice for comparing to variable noise model
     # session = "ec013.395"
     # session = "ec014.468"  # fields 8, 20, 22 nice for pooled at different speed bins
     # session = "ec014.639"
@@ -60,10 +57,11 @@ if __name__ == '__main__':
     # session = "Buddy.06272013"
     # session = "Cicero.09172014"
 
-    group_name = experimental_group_name
+    # group_name = experimental_group_name
     # group_name = "SpeedDepSharp"
     # group_name = "Time"
     # group_name = "VariableNoise3"
+    group_name = "VariableNoiseVanilla"
 
     # with open(f"fields/{session}.{group_name}.pkl", 'rb') as fields_file:
     #     fields = pickle.load(fields_file)['complete_fields']

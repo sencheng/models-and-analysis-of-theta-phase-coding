@@ -1,7 +1,6 @@
 import os
 import math
 import pickle
-import copy
 import numpy as np
 from scipy import signal
 from scipy.stats import linregress
@@ -447,7 +446,8 @@ class FiringFields(Base):
         fields = {}
         for key in all_fields:
             fields[key] = [all_fields[key][i] for i, complete in enumerate(all_fields['complete'])
-                           if complete or include_incomplete]
+                           if include_incomplete or complete]
+        fields['idx'] = [i for i, complete in enumerate(all_fields['complete']) if include_incomplete or complete]
         return fields
 
     def ok_speed_bins_histogram(self, speed_groups, min_occupancy, min_spread, hist_bin_size, num_hist_bins,
@@ -479,9 +479,26 @@ class FiringFields(Base):
 
         self.maybe_pickle_results(ok_by_speed_distance, "ok_by_speed_distance")
 
+    def within_field_increases(self, speed_groups, fields, values, name, subfolder):
+        speed_group_means = np.mean(speed_groups, axis=1)
+        max_deviation = len(speed_groups) - 1
+        all_increases = []
+        for characteristic_speed, field_values in zip(fields['characteristic_speeds'], values):
+            best_group_index = np.argmin(np.abs(speed_group_means - characteristic_speed))
+            baseline = field_values[best_group_index]
+            if ~np.isnan(baseline):
+                field_increases = []
+                for speed_group_index in range(best_group_index - max_deviation, best_group_index + max_deviation + 1):
+                    if speed_group_index < 0 or speed_group_index > max_deviation:
+                        field_increases.append(np.nan)
+                    else:
+                        field_increases.append(field_values[speed_group_index] - baseline)
+                all_increases.append(field_increases)
+        self.maybe_pickle_results(all_increases, name, subfolder=subfolder)
+
     def field_sizes_by_speed(self, speed_groups, min_peak_firing_rate, threshold, peak_prominence_threshold,
                              min_occupancy=0, min_spread=0, plot_fields=False, fields_per_plot=6, fig_size=(10, 6),
-                             constrained_layout=False, field_nums=None):
+                             constrained_layout=False, field_nums=None, pad=6, within_field=True):
         """Calculate place field sizes pooling spikes from different running speeds.
 
         Args:
@@ -497,11 +514,15 @@ class FiringFields(Base):
             fig_size (tuple(float)): Size of the figure in inches.
             constrained_layout (bool): For matplotlib. Very slow but otherwise figures are screwed.
             field_nums (list(int)): Fields to analyze.
+            pad (int): Number of spatial bins around the place field to plot.
+            within_field (bool): Whether to also calculate within-field increases with respect to the field's
+                characteristic running speed.
         """
         fields = self.screened_fields(include_incomplete=True)
         if field_nums is not None:
             for key, values in fields.items():
-                fields[key] = [value for i, value in enumerate(values) if i in field_nums]
+                fields[key] = [fields[key][i] for i in field_nums]
+                # fields[key] = [value for i, value in enumerate(values) if i in field_nums]
 
         occupancy, smooth_occupancy, max_smooth_occupancies = self.occupancy_by_speed(speed_groups)
         fields_spread = self.fields_spread(fields['run_types'], fields['bound_indices'], occupancy, min_occupancy)
@@ -557,6 +578,7 @@ class FiringFields(Base):
                 enumerate(zip(fields['run_types'], fields['bound_indices'])):
             lower_bound_index, upper_bound_index = bound_indices
             within_field = slice(lower_bound_index, upper_bound_index+1)
+            around_field = slice(max(0, lower_bound_index-pad), upper_bound_index+1+pad)
 
             for speed_group_num, speed_group in enumerate(speed_groups):
                 if plot_fields:
@@ -564,7 +586,8 @@ class FiringFields(Base):
                     ax.spines['top'].set_visible(False)
                     axr = ax.twinx()
                     axr.spines['top'].set_visible(False)
-                    axr.plot(self.positions, smooth_occupancy[run_type, speed_group_num], color='C7', linewidth=0.6)
+                    axr.plot(self.positions[around_field], smooth_occupancy[run_type, speed_group_num][around_field],
+                             color='C7', linewidth=0.6)
                     axr.set_ylim(top=max(max_smooth_occupancies) * 1.1)
                     ax.spines['right'].set_edgecolor('C7')
                     axr.tick_params(axis='y', colors='C7')
@@ -572,7 +595,8 @@ class FiringFields(Base):
                         axr.set_yticklabels([])
                     ax.set_zorder(1)
                     ax.patch.set_visible(False)
-                    ax.plot(self.positions, rate_maps[field_num, speed_group_num], '.', color='C0', markersize=3)
+                    ax.plot(self.positions[around_field], rate_maps[field_num, speed_group_num][around_field], '.',
+                            color='C0', markersize=3)
                     max_rate = 1.1*np.nanmax(rate_maps[field_num])
                     ax.set_ylim([-0.05*max_rate, max_rate])
                     # # for distinguishing valid and invalid points, plot above in red and uncomment here
@@ -586,7 +610,7 @@ class FiringFields(Base):
                     align_yaxis(ax, 0, axr, 0)
 
                     if speed_group_num == 0:
-                        ax.set_title(f"field {field_num}", fontsize='medium')
+                        ax.set_title(f"field {field_num + 1}", fontsize='medium')
                     if field_num % fields_per_plot == 0:
                         ax.annotate(f"{speed_group}\ncm/s", (-0.85, 0.5), xycoords="axes fraction",
                                     rotation="vertical", va='center', multialignment="center")
@@ -600,7 +624,7 @@ class FiringFields(Base):
                     group_smooth_rates = nan_smooth(rate_maps[field_num, speed_group_num], self.sigma / self.bin_size)
 
                     if plot_fields:
-                        ax.plot(self.positions, group_smooth_rates)
+                        ax.plot(self.positions[around_field], group_smooth_rates[around_field])
 
                     if fields_spread[field_num, speed_group_num] > min_spread:
                         field_rates = group_smooth_rates[within_field]
@@ -662,6 +686,9 @@ class FiringFields(Base):
         plt.tight_layout()
         self.maybe_save_fig(fig, "field_sizes")
 
+        if within_field:
+            self.within_field_increases(speed_groups, fields, all_field_sizes, "size_increases", "per_speed")
+
     def field_sizes_vs_stuff(self, max_marker_size=30, fig_size=(12, 3), plot=False):
 
         sizes = []
@@ -671,6 +698,7 @@ class FiringFields(Base):
         peak_normalized_pos = []
         peak_distances_to_border = []
         peak_rates = []
+        indices = []
 
         fields = self.screened_fields(include_incomplete=True)
         for field_num in range(len(fields['pair_nums'])):
@@ -683,6 +711,7 @@ class FiringFields(Base):
             peak_normalized_pos.append(peak_distances_from_start[-1] / self.tracking.d_runs_span)
             peak_distances_to_border.append(fields['distances_to_border'][field_num])
             peak_rates.append(fields['peak_rates'][field_num])
+            indices.append(fields['idx'][field_num])
 
         self.maybe_pickle_results([sizes], "sizes")
         self.maybe_pickle_results([spikes_mean_speeds], "spikes_mean_speeds")
@@ -691,6 +720,7 @@ class FiringFields(Base):
         self.maybe_pickle_results([peak_normalized_pos], "peak_normalized_pos")
         self.maybe_pickle_results([peak_distances_to_border], "peak_distances_to_border")
         self.maybe_pickle_results([peak_rates], "peak_rates")
+        self.maybe_pickle_results([indices], "indices")
 
         if plot:
             fig, ax = plt.subplots(1, 4, sharey='row', figsize=fig_size)

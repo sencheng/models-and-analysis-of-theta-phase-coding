@@ -2,6 +2,7 @@ import os
 import glob
 import pickle
 import numpy as np
+import math
 from scipy.interpolate import interp1d
 from scipy.stats import linregress, wilcoxon, kendalltau
 import warnings
@@ -254,10 +255,37 @@ def finish(fig, axes, name, group_name, summary=False, x_labels=None, y_label="P
         plt.close(fig)
 
 
+def mean_error(predicted, true, ax):
+    error = np.nanmean((true-predicted)**2)
+    ax.annotate(f"{error:.1f}", (1, 0.07), xycoords='axes fraction', horizontalalignment='right', fontsize='small')
+    return error
+
+
+def intercept_delta(x, y, all_intercepts, all_deltas):
+    flat_x = np.concatenate([x_group*np.ones(len(y_group)) for x_group, y_group in zip(x, y)])
+    flat_y = np.concatenate(y)
+    regress = linregress(flat_x, flat_y)
+    intercept = regress.intercept
+    all_intercepts.append(intercept)
+    delta = regress.slope * (x[-1] - x[0])
+    all_deltas.append(delta)
+
+
+def intercept_delta_error(predicted_intercept, predicted_delta, true_intercept, true_delta, ax):
+    error = abs(predicted_intercept - true_intercept) + abs(predicted_delta - true_delta)
+    ax.annotate(f"{error:.1f}", (1, 0.2), xycoords='axes fraction', horizontalalignment='right', fontsize='small')
+
+
+def deviation_delta_error(deviation, predicted_delta, true_delta, ax):
+    error = abs(predicted_delta - true_delta) + deviation
+    ax.annotate(f"{error:.1f}", (1, 0.33), xycoords='axes fraction', horizontalalignment='right', fontsize='small')
+
+
 def pooled_violins(title, group_name, names, rats_pooled_values, pairwise_increments=True, bottom_percentile=None,
                    top_percentile=None, increments_bottom_percentile=None, increments_top_percentile=None, bw=None,
                    ax=None, increments_ax=None, plot_y_labels=True, increments_y_labels=None,
-                   fig_size=None, close_figure=1, non_overlapping_increments=False):
+                   fig_size=None, close_figure=1, skip=1, true_means=None, true_intercepts=None, true_deltas=None,
+                   delta_delta=False, delta_delta_path=None):
 
     if ax is None:
         own_figure = True
@@ -269,6 +297,10 @@ def pooled_violins(title, group_name, names, rats_pooled_values, pairwise_increm
             increments_ax = None
     else:
         own_figure = False
+
+    all_means = []
+    # all_intercepts = []
+    # all_deltas = []
 
     for row_num, name in enumerate(names):
         all_values = rats_pooled_values[row_num][0]
@@ -288,7 +320,19 @@ def pooled_violins(title, group_name, names, rats_pooled_values, pairwise_increm
         for pc in parts['bodies']:
             pc.set_alpha(0.5)
             pc.set_facecolor(violin_color)
-        ax[row_num].plot(average_speeds, np.nanmean(all_values, axis=0), '.-', color='k')
+
+        all_means.append(np.nanmean(all_values, axis=0))
+        ax[row_num].plot(average_speeds, all_means[-1], '.-', color='k')
+
+        if len(true_means):
+            deviation = mean_error(all_means[-1], true_means.pop(0), ax[row_num])
+
+        # intercept_delta(x, clean_values, all_intercepts, all_deltas)
+        # if len(true_deltas):
+        #     true_delta = true_deltas.pop(0)
+        #     intercept_delta_error(all_intercepts[-1], all_deltas[-1],
+        #                           true_intercepts.pop(0), true_delta, ax[row_num])
+        #     deviation_delta_error(deviation, all_deltas[-1], true_delta, ax[row_num])
 
         if bottom_percentile is not None and top_percentile is not None:
             ax[row_num].set_ylim([0.9 * np.nanpercentile(all_values, bottom_percentile),
@@ -297,44 +341,57 @@ def pooled_violins(title, group_name, names, rats_pooled_values, pairwise_increm
             ax[row_num].set_ylabel(name)
 
         if pairwise_increments:
-            if non_overlapping_increments:
-                # find non-overlapping speed groups
-                indices = [0]
-                upper_bound = speed_groups[0][-1]
-                for group_num, speed_group in enumerate(speed_groups[1:]):
-                    if speed_group[0] >= upper_bound:
-                        indices.append(group_num + 1)
-                        upper_bound = speed_group[-1]
-            else:
-                indices = list(range(len(speed_groups)))
+            if delta_delta:  # increase in place field parameters wrt. baseline at characteristic running speed
+                mean_deltas = within_field_increases(group_name, delta_delta_path, ax=increments_ax[row_num])
+                all_means.append(mean_deltas)
 
-            increments = np.diff(all_values[:, indices])
-            increments_x_values = []
-            clean_increments = []
+            else:  # increase in place field parameters between adjacent speed bins
+                increments = []
+                increments_x = []
+                for speed_group_num in range(len(speed_groups) - 1 - skip):
+                    increments_raw = all_values[:, speed_group_num + 1 + skip] - all_values[:, speed_group_num]
+                    not_nan = ~np.isnan(increments_raw)
+                    increments.append(increments_raw[not_nan])
+                    x = (speed_groups[speed_group_num][1] + speed_groups[speed_group_num + 1 + skip][0])/2
+                    increments_x.append(x)
 
-            for increments_group_num, increments_group in enumerate(increments.T):
-                clean_increments_group = increments_group[~np.isnan(increments_group)]
-                if len(clean_increments_group):
-                    clean_increments.append(clean_increments_group)
-                    increments_x_values.append((average_speeds[increments_group_num]
-                                                + average_speeds[increments_group_num + 1]) / 2)
+                        # if len(increments[-1]) >= 10:
+                        #     statistic, p_value = wilcoxon(increments[-1])
+                        #     print(f"Pairwise increments. Wilcoxon test: N = {len(increments)}, p = {p_value:.2e}")
 
-            parts = increments_ax[row_num].violinplot(clean_increments, positions=increments_x_values, showmeans=False,
-                                                      showextrema=False, bw_method=bw,
-                                                      widths=0.5 * (average_speeds[1] - average_speeds[0]))
-            for pc in parts['bodies']:
-                pc.set_alpha(0.5)
-                pc.set_facecolor(violin_color)
-            increments_ax[row_num].plot(increments_x_values,
-                                        [np.mean(increments_group) for increments_group in clean_increments],
-                                        '.', color='k')
+                # all_increments = np.concatenate(increments)
+                # statistic, p_value = wilcoxon(all_increments)
+                # print(f"Increments Wilcoxon test: N = {all_increments.size}, p = {p_value:.2e}")
+
+                parts = increments_ax[row_num].violinplot(increments, positions=increments_x, showmeans=False,
+                                                          showextrema=False, bw_method=bw,
+                                                          widths=0.5 * (average_speeds[1] - average_speeds[0]))
+                for pc in parts['bodies']:
+                    pc.set_alpha(0.5)
+                    pc.set_facecolor(violin_color)
+
+                all_means.append(np.array([np.mean(increments_group) for increments_group in increments]))
+                increments_ax[row_num].plot(increments_x, all_means[-1], '.', color='k')
+
+            if len(true_means):
+                deviation = mean_error(all_means[-1], true_means.pop(0), increments_ax[row_num])
+
+            # intercept_delta(increments_x, increments, all_intercepts, all_deltas)
+            # if len(true_deltas):
+            #     true_delta = true_deltas.pop(0)
+            #     intercept_delta_error(all_intercepts[-1], all_deltas[-1],
+            #                           true_intercepts.pop(0), true_delta, increments_ax[row_num])
+            #     deviation_delta_error(deviation, all_deltas[-1], true_delta, increments_ax[row_num])
+
             increments_ax[row_num].axhline(0, linestyle='dotted', color='C7')
+
             if plot_y_labels:
                 if increments_y_labels is not None:
                     y_label = increments_y_labels[row_num]
                 else:
                     y_label = f"Within-field\n"rf"$\Delta$ {name.lower()}"
                 increments_ax[row_num].set_ylabel(y_label)
+
             if increments_bottom_percentile is not None and increments_top_percentile is not None:
                 increments_ax[row_num].set_ylim([np.nanpercentile(increments, increments_bottom_percentile),
                                                  np.nanpercentile(increments, increments_top_percentile)])
@@ -344,12 +401,19 @@ def pooled_violins(title, group_name, names, rats_pooled_values, pairwise_increm
         if close_figure:
             plt.close(fig)
 
+    return all_means
+
 
 def plot_pooled(title, names, paths, remove_outliers=False, inter_quartile_factor=3, alpha=0.6,
                 pairwise_increments=True, bottom_percentile=None, top_percentile=None, increments_bottom_percentile=None,
                 increments_top_percentile=None, violin_ax=None, violin_increments_ax=None,
                 violin_increments_y_labels=None, fig_size=None, fig_summary_size=None, fig_violins_size=None,
-                close_figures=1, slopes_x_label='', p_pos=0, summary_y_lims=None, min_points=5, vertical_layout=False):
+                close_figures=1, slopes_x_label='', p_pos=0, summary_y_lims=None, min_points=5, vertical_layout=False,
+                delta_delta=False, delta_delta_path=None):
+
+    true_means = []
+    # true_intercepts = []
+    # true_deltas = []
 
     for group_num, group_name in enumerate(group_names):
         num_rows = len(names)
@@ -382,13 +446,20 @@ def plot_pooled(title, names, paths, remove_outliers=False, inter_quartile_facto
         finish(fig, ax, f"{title} - All", group_name, close_figure=close_figures)
         finish(fig_summary, ax_summary, f"{title} - Summary", group_name, summary=True, close_figure=close_figures)
 
-        pooled_violins(title, group_name, names, rats_pooled_values, pairwise_increments, bottom_percentile,
-                       top_percentile, increments_bottom_percentile, increments_top_percentile,
-                       ax=violin_ax[:, group_num] if violin_ax is not None else None,
-                       increments_ax=violin_increments_ax[:, group_num] if violin_increments_ax is not None else None,
-                       plot_y_labels=group_num == 0, increments_y_labels=violin_increments_y_labels
-                       if violin_increments_y_labels is not None else None, fig_size=fig_violins_size,
-                       close_figure=close_figures)
+        increments_ax = violin_increments_ax[:, group_num] if violin_increments_ax is not None else None
+        increments_y_labels = violin_increments_y_labels if violin_increments_y_labels is not None else None
+        all_means = pooled_violins(title, group_name, names, rats_pooled_values, pairwise_increments, bottom_percentile,
+                                   top_percentile, increments_bottom_percentile, increments_top_percentile,
+                                   ax=violin_ax[:, group_num] if violin_ax is not None else None,
+                                   increments_ax=increments_ax, plot_y_labels=group_num == 0,
+                                   increments_y_labels=increments_y_labels, fig_size=fig_violins_size,
+                                   # true_intercepts=true_intercepts.copy(), true_deltas=true_deltas.copy(),
+                                   close_figure=close_figures, true_means=true_means.copy(),
+                                   delta_delta=delta_delta, delta_delta_path=delta_delta_path)
+        if group_num == 0:
+            true_means = all_means
+            # true_intercepts = all_intercepts
+            # true_deltas = all_deltas
 
 
 def clean_scatter(values, inter_quartile_factor):
@@ -511,10 +582,9 @@ def summary_scatter(x, y, window_size, window_stride, window_min_points, axes, a
         if plot_slopes:
             grand_regress = nan_regress(np.concatenate(x[rat_index]), np.concatenate(y[rat_index]), only_slope=False)
             regression_line_x = np.array((np.nanmin(np.concatenate(x[rat_index])), np.nanmax(np.concatenate(x[rat_index]))))
-            # axes[rat_index].plot(regression_line_x, regression_line_x * grand_regress.slope + grand_regress.intercept,
-            #                      color='k', linestyle='dashed', label=f'fit')
-            # axes[rat_index].annotate(f"p={grand_regress.pvalue:.1e}", (0.6, 0.15), xycoords="axes fraction",
-            #                          fontsize="x-small")
+            axes[rat_index].plot(regression_line_x, regression_line_x * grand_regress.slope + grand_regress.intercept,
+                                 color='k', linestyle='dashed', label=f'fit')
+
             n = np.sum(~np.isnan(np.concatenate(x[rat_index])) & ~np.isnan(np.concatenate(y[rat_index])))
             print(f"{rats[rat_index]}:\nWald test: N = {n}, p = {grand_regress.pvalue:.2e}")
 
@@ -523,8 +593,8 @@ def summary_scatter(x, y, window_size, window_stride, window_min_points, axes, a
             not_nan = ~np.isnan(all_x) & ~np.isnan(all_y)
             tau, p_tau = kendalltau(all_x[not_nan], all_y[not_nan])
             print(f"Kendal Tau test: Tau = {tau}, p = {p_tau}")
-            axes[rat_index].annotate(f"p={p_tau:.1e}", annotation_xy, xycoords="axes fraction",
-                                     fontsize="x-small")
+            axes[rat_index].annotate(f"R = {grand_regress.rvalue:.2f}\np = {p_tau:.1e}", annotation_xy,
+                                     xycoords="axes fraction", fontsize="small")
         else:
             grand_regress = np.nan
 
@@ -596,7 +666,7 @@ def sci_notation(num, decimal_digits=1, precision=None, exponent=None):
 
 def two_d_hist(all_x, all_y, x_label, y_label, fig_name, x_min, x_max, num_x_bins, y_min, y_max, num_y_bins,
                num_x_ticks=5, logarithm=True, line_width=1.5, close_figures=True, fig_size=(5.5/2.54, 5.56/2.54),
-               min_points=5):
+               min_points=5, fit=False, tau_stat=False, r_pos=(0.7, 0.85), external_ax=None):
     x_bin_size = (x_max - x_min) / (num_x_bins - 1)
     y_bin_size = (y_max - y_min) / (num_y_bins - 1)
     hist = np.zeros((num_y_bins, num_x_bins))
@@ -613,31 +683,53 @@ def two_d_hist(all_x, all_y, x_label, y_label, fig_name, x_min, x_max, num_x_bin
     else:
         norm = colors_lib.Normalize(vmin=0)
 
-    fig, ax = plt.subplots(figsize=fig_size)
+    if external_ax is None:
+        fig, ax = plt.subplots(figsize=fig_size)
+    else:
+        ax = external_ax
+
     heatmap = ax.matshow(hist, origin='lower', norm=norm, aspect='auto',
                          extent=(x_min - x_bin_size/2, x_max + x_bin_size /2,
                                  y_min - y_bin_size/2, y_max + y_bin_size/2))
     bar = plt.colorbar(heatmap, ax=ax, aspect=60, orientation='horizontal')
     bar.ax.set_xlabel("Count + 1")
     ax.axhline(0, linestyle='dashed', color='white')
-    ax.plot(np.linspace(x_min, x_max, num_x_bins), mean, 'k', linewidth=line_width)
+    ax.plot(np.linspace(x_min, x_max, num_x_bins), mean, color='C3', linewidth=line_width)
     ax.set_xlabel(x_label)
-    ax.set_ylabel(y_label.replace('\n', ' '))
+    # ax.set_ylabel(y_label.replace('\n', ' '))
+    if y_label is not None:
+        ax.set_ylabel(y_label)
     ax.xaxis.set_ticks_position("bottom")
-    ax.set_xticks(np.linspace(x_min, x_max, num_x_ticks))
+    if num_x_ticks is not None:
+        ax.set_xticks(np.linspace(x_min, x_max, num_x_ticks))
 
-    if close_figures:
-        plt.close(fig)
-    fig.savefig(fig_name, bbox_inches='tight')
+    if fit:
+        not_nan = (~np.isnan(all_x)) & (~np.isnan(all_y))
+        slope, intercept, r, p, e = linregress(all_x[not_nan], all_y[not_nan])
+        x = np.array((x_min, x_max))
+        y = x*slope + intercept
+        ax.plot(x, y, 'k')
+        string = f"R = {r:.2f}"
+
+        if tau_stat:
+            tau, p_tau = kendalltau(all_x[not_nan], all_y[not_nan])
+            string += f"\np = {p_tau:.0e}"
+
+        ax.annotate(string, r_pos, color='white', xycoords='axes fraction')
+
+    if external_ax is None:
+        if close_figures:
+            plt.close(fig)
+        fig.savefig(fig_name, bbox_inches='tight')
 
 
 def plot_scatter(title, names_x, paths_x, names_y, paths_y, window_sizes, window_strides, window_min_points, plot_slopes,
                  remove_outliers=False, inter_quartile_factor=3, alpha=0.6, summary=True, all_together=None,
                  all_together_means=None, all_together_dens=None, all_together_hists=None, hist_dicts=None,
                  plot_violins=(0,), analysis_of_variance=False, little_names_x=None,
-                 fig_size=None, fig_summary_size=None, fig_all_size=None, fig_violins_size=None, close_figures=1,
-                 p_pos=0, slopes_x_lim=None, slopes_x_label='', hyperbolic_fit=None, annotation_xy=(0.08, 0.1),
-                 mean_line_width=1.5, shade=False, inverse=False, y_lim=None):
+                 fig_size=None, fig_summary_size=None, fig_all_size=None, fig_hist_size=None, fig_violins_size=None,
+                 close_figures=True, p_pos=0, slopes_x_lim=None, slopes_x_label='', hyperbolic_fit=None,
+                 annotation_xy=(0.08, 0.1), mean_line_width=1.5, shade=False, inverse=False, y_lim=None):
     for group_name in group_names:
         num_rows = max(len(names_x), len(names_y))
         fig, ax = plt.subplots(num_rows, len(rats), sharey='row', figsize=fig_size, squeeze=False)
@@ -656,6 +748,11 @@ def plot_scatter(title, names_x, paths_x, names_y, paths_y, window_sizes, window
                         ax[row_num, rat_index].plot(x_group, y_group, '.', color=colors[session_num % len(colors)],
                                                     alpha=alpha, label=session)
                     ax[row_num, 0].set_ylabel(name_y)
+
+                    if y_lim is not None:
+                        for axis in ax[row_num]:
+                            axis.set_ylim(y_lim)
+
                     row_num += 1
 
         if all_together is not None:
@@ -701,12 +798,13 @@ def plot_scatter(title, names_x, paths_x, names_y, paths_y, window_sizes, window
                         if all_together_hists is not None and all_together_hists[combo_num]:
                             fig_name = f"{figures_path}/{group_name}/{title} - 2D histogram  {combo_num}"
                             two_d_hist(all_x, all_y, name_x, name_y, fig_name, **hist_dicts[combo_num],
-                                       close_figures=close_figures)
+                                       close_figures=close_figures, num_x_ticks=5, fit=plot_slopes[combo_num],
+                                       fig_size=fig_hist_size)
 
                         if all_together_means is not None and all_together_means[combo_num]:
                             mean_x, mean_y = moving_average(all_x_arrays, all_y_arrays, window_sizes[combo_num],
                                                             window_strides[combo_num],
-                                                            window_min_points, min_x=0 - window_sizes[combo_num] / 2)
+                                                            window_min_points)
                             ax_all[row_num, 0].plot(mean_x, mean_y, 'k', linewidth=mean_line_width)
 
                         if all_together_dens is not None and all_together_dens[combo_num]:
@@ -727,11 +825,12 @@ def plot_scatter(title, names_x, paths_x, names_y, paths_y, window_sizes, window
                                                             horizontalalignment='left')
 
                             fit = nan_regress(all_x, all_y, only_slope=False)
+                            print(f"y = {fit[0]} * x + {fit[1]}")
                             x = np.array((np.nanmin(all_x), np.nanmax(all_x)))
                             y = x * fit[0] + fit[1]
-                            ax_all[row_num, 0].plot(x, y, 'k')
+                            ax_all[row_num, 0].plot(x, y, 'k', linestyle='dashed')
                             # p_string = sci_notation(fit[3])
-                            ax_all[row_num, 0].annotate(rf"$R^2$ = {fit[2]**2:.2f}""\n",
+                            ax_all[row_num, 0].annotate(f"$R$ = {fit[2]:.2f}""\n",
                                                         xy=annotation_xy, xycoords='axes fraction')
                             print(f"ALL: \nWald Test: N = {np.sum(~np.isnan(all_x) & ~np.isnan(all_y))}, "
                                   f"p = {fit[3]:.2e}")
@@ -792,64 +891,81 @@ def plot_scatter(title, names_x, paths_x, names_y, paths_y, window_sizes, window
         finish(fig, ax, f"{title} - All", group_name, x_labels=names_x, close_figure=close_figures)
 
 
-def cycle_lengths_vs_field_size(path_field_distances, path_field_sizes, path_trajectory_distances,
-                                path_trajectory_lengths, window_size, window_stride, window_min_points,
-                                remove_outliers=True, inter_quartile_factor=3, alpha=0.6, fig_size=None,
-                                close_figure=1):
+def cycle_lengths_vs_mean_x(path_field_distances, path_field_xs, x_name, path_trajectory_distances,
+                            path_trajectory_lengths, window_size, window_stride, window_min_points,
+                            remove_outliers=True, inter_quartile_factor=3, alpha=0.6, fig_size=None,
+                            close_figure=1, inverse=False, units="cm", r_pos=(0.6, 0.85)):
     for group_name in group_names:
-        field_distances, field_sizes, rats_sessions = load_scatter(group_name, [path_field_distances],
-                                                                   [path_field_sizes])
+        field_distances, field_xs, rats_sessions = load_scatter(group_name, [path_field_distances],
+                                                                [path_field_xs], inverse=inverse)
 
-        trajectory_distances, trajectory_slopes, rats_sessions = load_scatter(group_name, [path_trajectory_distances],
-                                                                              [path_trajectory_lengths])
+        trajectory_distances, trajectory_lengths, rats_sessions = \
+            load_scatter(group_name, [path_trajectory_distances,
+                                      # "PathLengths/single_cycles/speeds"
+                                      ],
+                         [path_trajectory_lengths])
 
         fig, ax = plt.subplots(1, len(rats), sharey='row', figsize=fig_size, squeeze=False)
         ax[0, 0].set_ylabel("Theta trajectory\nslope (cm/deg)")
 
+        all_xs = []
+        all_lengths = []
+
         for rat_index in range(len(rats)):
             if remove_outliers:
-                clean_scatter(field_sizes[0][rat_index], inter_quartile_factor)
-                clean_scatter(trajectory_slopes[0][rat_index], inter_quartile_factor)
+                clean_scatter(field_xs[0][rat_index], inter_quartile_factor)
+                clean_scatter(trajectory_lengths[0][rat_index], inter_quartile_factor)
 
-            mean_distances, mean_sizes = moving_average(field_distances[0][rat_index], field_sizes[0][rat_index],
-                                                        window_size, window_stride, window_min_points)
+            mean_distances, mean_xs = moving_average(field_distances[0][rat_index], field_xs[0][rat_index],
+                                                     window_size, window_stride, window_min_points)
 
             min_distance = mean_distances[0]
             ds = mean_distances[1] - mean_distances[0]
 
-            all_sizes = []
-            all_slopes = []
-            for group_trajectory_distances, group_trajectory_slopes, group_session in \
-                    zip(trajectory_distances[0][rat_index], trajectory_slopes[0][rat_index], rats_sessions[rat_index]):
-                sizes = []
-                slopes = []
-                for trajectory_distance, trajectory_slope in zip(group_trajectory_distances, group_trajectory_slopes):
+            rat_xs = []
+            rat_lengths = []
+            for group_trajectory_distances, group_trajectory_lengths, group_session in \
+                    zip(trajectory_distances[0][rat_index], trajectory_lengths[0][rat_index], rats_sessions[rat_index]):
+                xs = []
+                lengths = []
+                for trajectory_distance, trajectory_length in zip(group_trajectory_distances, group_trajectory_lengths):
                     i_previous = int((trajectory_distance - min_distance) / ds)
                     i_next = i_previous + 1
                     remainder = (trajectory_distance - min_distance) % ds
-                    if 0 <= i_previous and i_next < len(mean_sizes):
-                        sizes.append(mean_sizes[i_previous] * (1-remainder) + mean_sizes[i_next] * remainder)
-                        slopes.append(trajectory_slope)
+                    if 0 <= i_previous and i_next < len(mean_xs):
+                        xs.append(mean_xs[i_previous] * (1-remainder) + mean_xs[i_next] * remainder)
+                        lengths.append(trajectory_length)
 
                 session_num = [s.split('.')[0] for s in
                                sessions[:sessions.index(group_session)]].count(group_session.split('.')[0])
 
-                ax[0, rat_index].plot(sizes, slopes, '.', color=colors[session_num % len(colors)], alpha=alpha,
+                ax[0, rat_index].plot(xs, lengths, '.', color=colors[session_num % len(colors)], alpha=alpha,
                                       label=group_session)
 
-                all_sizes.append(sizes)
-                all_slopes.append(slopes)
+                rat_xs.append(xs)
+                rat_lengths.append(lengths)
 
-            all_sizes = np.concatenate(all_sizes)
-            all_slopes = np.concatenate(all_slopes)
-            x = np.array((np.nanmin(all_sizes), np.nanmax(all_sizes)))
-            fit = nan_regress(all_sizes, all_slopes, only_slope=False)
+            rat_xs = np.concatenate(rat_xs)
+            rat_lengths = np.concatenate(rat_lengths)
+            all_xs.append(rat_xs)
+            all_lengths.append(rat_lengths)
+
+            x = np.array((np.nanmin(rat_xs), np.nanmax(rat_xs)))
+            fit = nan_regress(rat_xs, rat_lengths, only_slope=False)
             ax[0, rat_index].plot(x, x*fit[0] + fit[1], 'k')
-            ax[0, rat_index].annotate(f"s = {fit[1]:.1e} + {fit[0]:.1e} v\nr = {fit[2]:.2f}\np = {fit[3]:.1e}",
+            ax[0, rat_index].annotate(f"s = {fit[1]:.1f} + {fit[0]:.1f} v\nr = {fit[2]:.2f}\np = {fit[3]:.1e}",
                                       xy=(0.08, 0.8), xycoords='axes fraction', fontsize='x-small')
 
-        finish(fig, ax, "Single cycle theta trajectories vs mean place field size", group_name,
-               x_labels=["Mean place field size\nat trajectory location(cm)"], close_figure=close_figure)
+        x_label = f"Mean {x_name}\nat theta trajectory location ({units})"
+        fig_name = f"Single cycle theta trajectories vs mean {x_name}"
+        finish(fig, ax, fig_name, group_name, x_labels=[x_label], close_figure=close_figure)
+
+        all_xs = np.concatenate(all_xs)
+        all_lengths = np.concatenate(all_lengths)
+        file_name = f"{figures_path}/{group_name}/{fig_name} - 2D histogram"
+        two_d_hist(all_xs, all_lengths, x_label, "Theta trajectory length (cm)", file_name,
+                   np.nanmin(all_xs), np.nanmax(all_xs), 25, np.nanmin(all_lengths), np.nanmax(all_lengths), 25,
+                   fit=True, close_figures=close_figure, r_pos=r_pos, min_points=10)
 
 
 def speed_histograms(plot_colorbars=True, fig_size=None, close_figure=1):
@@ -1277,9 +1393,152 @@ def significant_cycles():
         print(f"{rat}: mean = {np.mean(values_container[rat_index])}, std = {np.std(values_container[rat_index])}")
     print(f"ALL: mean = {np.mean(np.concatenate(values_container))}, std = {np.std(np.concatenate(values_container))}")
 
-    print(1)
+
+def scatter_x_vs_y(title, name_x, path_x, path_x_ids, name_y, path_y, path_y_ids, y_lim=None, fig_size=(4, 4),
+                   alpha=0.6, r_pos=(0.6, 0.85), mean_line_width=1.5, window_size=10, window_stride=5,
+                   window_min_points=2):
+    for group_name in group_names:
+        all_x = []
+        all_y = []
+        rat_indices = []
+        for session in sessions:
+            rat_index = rats.index(session.split('.')[0])
+            xs = load(session, group_name, path_x)[0]
+            x_ids = load(session, group_name, path_x_ids)[0]
+            ys = load(session, group_name, path_y)[0]
+            y_ids = load(session, group_name, path_y_ids)[0]
+
+            for x_num, x_id in enumerate(x_ids):
+                if x_id in y_ids:
+                    all_x.append(xs[x_num])
+                    all_y.append(ys[y_ids.index(x_id)])
+                    rat_indices.append(rat_index)
+
+        all_x = np.array(all_x)
+        all_y = 1/np.array(all_y)
+        rat_indices = np.array(rat_indices)
+
+        fig, ax = plt.subplots(figsize=fig_size)
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
+
+        for rat_index, rat in enumerate(rats):
+            ax.plot(all_x[rat_indices == rat_index], all_y[rat_indices == rat_index], '.', color=colors[rat_index],
+                    label=rat, alpha=alpha)
+
+        ax.set_xlabel(name_x)
+        ax.set_ylabel(name_y)
+        if y_lim is not None:
+            ax.set_ylim(y_lim)
+
+        handles, labels = ax.get_legend_handles_labels()
+        by_label = dict(zip(labels, handles))
+        legend = ax.legend(by_label.values(), by_label.keys(), loc='upper left', fontsize='x-small',
+                           ncol=3, bbox_to_anchor=(0, -0.25), borderaxespad=0)
+
+        mean_x, mean_y = moving_average([all_x], [all_y], window_size, window_stride, window_min_points)
+        ax.plot(mean_x, mean_y, 'k', linewidth=mean_line_width)
+
+        not_nan = (~np.isnan(all_x)) & (~np.isnan(all_y))
+        slope, intercept, r, p, e = linregress(all_x[not_nan], all_y[not_nan])
+        print(f"y = {slope} * x + {intercept}")
+        x = np.array((np.nanmin(all_x), np.nanmax(all_x)))
+        y = x*slope + intercept
+        ax.plot(x, y, 'k', linestyle='dashed')
+        ax.annotate(f"R = {r:.2f}", r_pos, xycoords="axes fraction")
+
+        fig.savefig(f"{figures_path}/{group_name}/{title}", bbox_extra_artists=[legend], bbox_inches='tight')
 
 
+def plot_histograms(title, names_x, paths_x, names_y, paths_y, min_points, plot_slopes, remove_outliers=False,
+                    inter_quartile_factor=3, hist_dicts=(), fig_size=None, r_pos=(0.7, 0.85), close_figures=True):
+    for group_name in group_names:
+        num_rows = max(len(names_x), len(names_y))
+        fig, ax = plt.subplots(num_rows, len(rats), sharey='row', figsize=fig_size, squeeze=False)
 
+        rats_xs, rats_ys, rats_sessions = load_scatter(group_name, paths_x, paths_y, remove_outliers,
+                                                       inter_quartile_factor)
+
+        for rat_index in range(len(rats)):
+
+            ax[0, rat_index].set_title(rats[rat_index])
+
+            row_num = 0
+            for y_num, name_y in enumerate(names_y):
+                rat_ys = np.concatenate(rats_ys[y_num][rat_index])
+
+                for x_num, name_x in enumerate(names_x):
+                    rat_xs = np.concatenate(rats_xs[x_num][rat_index])
+                    y_label = name_y if rat_index == 0 else None
+                    two_d_hist(rat_xs, rat_ys, name_x, y_label, None, **hist_dicts[row_num],
+                               external_ax=ax[row_num, rat_index], r_pos=r_pos, min_points=min_points,
+                               fit=plot_slopes[row_num], tau_stat=True)
+
+                    row_num += 1
+
+        fig.savefig(f"{figures_path}/{group_name}/{title}")
+        if close_figures:
+            plt.close(fig)
+
+
+def pooled_slope_histogram(title, x_label, path_y, remove_outliers=False, inter_quartile_factor=3, fig_size=None,
+                           num_bins=50, close_figures=True):
+    for group_name in group_names:
+        fig, ax = plt.subplots(figsize=fig_size)
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
+
+        rats_ys = load_pooled(group_name, [path_y], remove_outliers, inter_quartile_factor)[0][0]
+
+        all_slopes = []
+        for rat_ys in rats_ys:
+            for group_ys in rat_ys:
+                not_nan = ~np.isnan(group_ys)
+                if np.sum(not_nan) > 1:
+                    all_slopes.append(linregress(average_speeds[not_nan], group_ys[not_nan])[0])
+
+        statistic, p_value = wilcoxon(all_slopes)
+        print(f"Wilcoxon test: p = {p_value}")
+
+        max_abs_slope = max(max(all_slopes), -min(all_slopes))
+
+        ax.hist(all_slopes, bins=num_bins, range=(-max_abs_slope, max_abs_slope))
+        ax.set_xlabel(x_label)
+        ax.set_ylabel("Count")
+        ax.axvline(0, linestyle='dashed', color='lightgray')
+        fig.savefig(f"{figures_path}/{group_name}/{title}")
+        if close_figures:
+            plt.close(fig)
+
+
+def within_field_increases(group_name, path_deltas, remove_outliers=False, inter_quartile_factor=3, min_points=20,
+                           speed_bin_distance=10, ax=None):
+    rats_values = load_pooled(group_name, [path_deltas], remove_outliers=remove_outliers,
+                              inter_quartile_factor=inter_quartile_factor)[0][0]
+
+    deltas = np.vstack([np.vstack(rat_values) for rat_values in rats_values])
+
+    speed_deltas = []
+    clean_deltas = []
+    for col in range(deltas.shape[1]):
+        not_nan = ~np.isnan(deltas[:, col])
+        if np.sum(not_nan) > min_points:
+            speed_deltas.append(speed_bin_distance * (col - int(deltas.shape[1] / 2)))
+            clean_deltas.append(deltas[:, col][not_nan])
+
+    if ax is None:
+        fig, ax = plt.subplots()
+
+    parts = ax.violinplot(clean_deltas, speed_deltas, showextrema=False, widths=0.5 * speed_bin_distance)
+
+    mean_values = [np.mean(group_deltas) for group_deltas in clean_deltas]
+    ax.plot(speed_deltas, mean_values, '.', color='k')
+    ax.axhline(0, linestyle='dotted', color='C7')
+
+    for pc in parts['bodies']:
+        pc.set_alpha(0.5)
+        pc.set_facecolor(violin_color)
+
+    return np.nanmean(deltas, axis=0)
 
 

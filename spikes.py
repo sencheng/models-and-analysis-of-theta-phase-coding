@@ -258,8 +258,8 @@ class VariableSpikes(ModelSpikes):
                  exponential_factor, save_figures=False, figure_format="png", figures_path="figures"):
 
         super().__init__(super_group_name, group_name, child_name, lfp, tracking, num_cells, ds, dt, phase_range,
-                         phase_current, firing_rate_0, firing_rage_slope, theta_modulation, save_figures, figure_format,
-                         figures_path)
+                         phase_current, firing_rate_0, firing_rage_slope, theta_modulation, save_figures=save_figures,
+                         figure_format=figure_format, figures_path=figures_path)
 
         self.theta_distances = []
         self.field_sigmas = []
@@ -459,7 +459,7 @@ class SpeedSpikes(ModelSpikes):
         model_spikes = cls(super_group_name, group_name, child_name, kwargs['LFP'], kwargs['Tracking'], p["num_cells"],
                            p["ds"], p["dt"], p["phase_range"], p["phase_current"], p["firing_rate_0"],
                            p["firing_rate_slope"], p["theta_modulation"], p['theta_time'], p['multiplicative_sigma'],
-                           p['additive_sigma'], p['size_to_theta_d'], p['size_min'], p['shift_sigma'],
+                           p['additive_sigma'], p['size_to_theta_d'], p['size_min'], p['shift_sigma'], None,
                            save_figures, figure_format, figures_path)
         model_spikes.generate_spikes()
 

@@ -58,7 +58,7 @@ if small_plots:
     font_size = 7
     line_width = 1
 
-    thin_line_width = 0.5
+    thin_line_width = 0.75  # 0.5
 
     plt.rcParams.update({'font.family': 'sans-serif', 'font.sans-serif': 'Arial',
                          'font.size': font_size, 'mathtext.default': 'regular', 'axes.linewidth': thin_line_width,

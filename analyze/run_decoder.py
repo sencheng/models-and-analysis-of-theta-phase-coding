@@ -31,9 +31,8 @@ def run_path_lengths(path_lengths):
 
     path_lengths.single_cycles(min_peak_prob=p['min_peak_prob'], min_phase_coverage=p['min_phase_coverage'],
                                min_phase_extent=p['min_phase_extent'], radon_fit_params=p['radon_fit_params'],
-                               max_cycles_to_plot=128,
-                               # max_cycles_to_plot=0,
-                               from_run_types=(1, 1), cycles_per_figure=(8, 8), cycles_fig_size=(9.7*cm, 9*cm))
+                               max_cycles_to_plot=128, from_run_types=(1, 1), cycles_per_figure=(8, 8),
+                               cycles_fig_size=(9.7*cm, 9*cm))
 
     # if path_lengths.group_name == experimental_group_name:
     #     # print("NO displacement compensation:")

@@ -7,7 +7,7 @@ def run_cell_coordination(cell_coordination):
     print("Analyzing cell coordination...")
     p = general_parameters['CellCoordination']
 
-    cell_coordination.full_histograms()
+    # cell_coordination.full_histograms()
     cell_coordination.coordination_by_speed(speed_groups, num_phase_bins=p['num_phase_bins'],
                                             sample_size=p['sample_size'])
 

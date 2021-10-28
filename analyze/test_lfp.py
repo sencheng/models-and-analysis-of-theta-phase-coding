@@ -9,8 +9,8 @@ from data_analysis.analyze.config import data_path, general_parameters, experime
 # session = "ec014.468"
 # session = "ec014.639"
 # session = "ec016.233"
-session = "Buddy.06272013"
-# session = "Achilles.10252013"
+# session = "Buddy.06272013"
+session = "Achilles.10252013"
 # session = "Gatsby.08022013"
 
 p = general_parameters['LFP']
@@ -36,8 +36,8 @@ lfp.find_significant_cycles()
 lfp.calculate_phase_locking(data_path, s['dataset'], s['session_set'], s['session'], s['discarded_intervals'], plot=True)
 lfp.comp_instantaneous_frequency()
 
-lfp.plot(time_interval=(0, 500), channels=[0])
+# lfp.plot(time_interval=(0, 500), channels=[0])
 # lfp.plot(time_interval=(17079.2, 17300), channels=[24])  # Gatsby
-# lfp.plot(time_interval=(18080, 182000), channels=[0])  # Achilles
+lfp.plot(time_interval=(18080, 182000), channels=[0])  # Achilles
 
 plt.show()

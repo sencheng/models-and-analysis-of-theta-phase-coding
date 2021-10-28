@@ -12,10 +12,10 @@ from data_analysis.analyze.run_cell_coordination import run_cell_coordination, C
 
 def analyze(session, group_name):
 
-    if group_name == experimental_group_name:
-        tracking = initialize((Tracking,), session, group_name)['Tracking']
-        run_tracking(tracking)
-        del tracking
+    # if group_name == experimental_group_name:
+    #     tracking = initialize((Tracking,), session, group_name)['Tracking']
+    #     run_tracking(tracking)
+    #     del tracking
 
     # place field sizes and skews
     firing_fields = initialize((FiringFields,), session, group_name)['FiringFields']

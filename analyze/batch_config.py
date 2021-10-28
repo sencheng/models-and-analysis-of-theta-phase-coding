@@ -4,20 +4,20 @@ from data_analysis.analyze.config import experimental_group_name, figures_path
 
 # select which sessions to analyze
 sessions = [
-    "ec013.156",
-    "ec013.206",
-    "ec013.374",
-    "ec013.386",
-    "ec013.388",
-    "ec013.395",
-    "ec013.412",
-    "ec013.413",
-    "ec013.440",
-    "ec013.454",
-    "ec013.466",
-    "ec013.469",
-    "ec013.502",
-    "ec013.531",
+    # "ec013.156",
+    # "ec013.206",
+    # "ec013.374",
+    # "ec013.386",
+    # "ec013.388",
+    # "ec013.395",
+    # "ec013.412",
+    # "ec013.413",
+    # "ec013.440",
+    # "ec013.454",
+    # "ec013.466",
+    # "ec013.469",
+    # "ec013.502",
+    # "ec013.531",
     # only these three sessions were used in the models for ec013:
     "ec013.555",
     "ec013.556",
@@ -56,11 +56,15 @@ for session in sessions:
 
 # select what to analyze: experimental data and/or models
 group_names = [
-    experimental_group_name,  # experimental data
+    # experimental_group_name,  # experimental data
     # 'Time',  # temporal sweep model
     # 'Position',  # spatial sweep model
-    # 'SpeedDep57',  # behavior-dependent sweep model
-    # 'VariableNoise'  # variable noise model
+    # 'SpeedDepVanilla'  # behavior-dependent sweep model
+
+    # 'VariableNoise'  # variable noise model with extra variance
+    'VariableNoiseVanilla'  #
+
+    # 'SpeedDep57',  # behavior-dependent sweep model with extra variance
 ]
 
 figures_path = f"{figures_path}/ALL"

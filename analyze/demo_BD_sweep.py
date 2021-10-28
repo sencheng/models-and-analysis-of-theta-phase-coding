@@ -44,10 +44,12 @@ cm = 1/2.54
 fig, ax = plt.subplots(1, 2, sharey='row', gridspec_kw={'width_ratios': [1, 0.2]}, figsize=(6.5*cm, 6*cm))
 ax[0].set_visible(False)
 # ax[1].invert_xaxis()
-ax[1].axis('off')
-ax[1].set_xlim([-0.25, 1.05])
-rect = plt.Rectangle((-0.2, bottom), 0.2, top - bottom, facecolor='whitesmoke')
-ax[1].add_patch(rect)
+# ax[1].axis('off')
+for spine in ['top', 'bottom', 'right']:
+    ax[1].spines[spine].set_visible(False)
+ax[1].set_xlim([0, 1.2])
+# rect = plt.Rectangle((-0.2, bottom), 0.2, top - bottom, facecolor='whitesmoke')
+# ax[1].add_patch(rect)
 ax[1].set_ylim([bottom, top])
 ax[1].set_xlabel("Firing\nrate")
 
@@ -122,8 +124,8 @@ for speed_num, speed in enumerate(speeds):
 
 # FIRING FIELDS FROM THE MODEL
 super_group_name = "BDSweepDemo"
-group_name = "BDSweepDemo"
-t_sim = 300
+group_name = "BDSweepDemoRevision"
+t_sim = 1400
 
 # LFP
 p = general_parameters['LFP']
@@ -158,9 +160,9 @@ tracking.calculate_characteristic_speeds(top_percentile=p['top_percentile'], bot
 
 # Model Spikes
 p = general_parameters[f'SpeedSpikes|{group_name}']
-num_cells = 6
+num_cells = 2
 # field_centers = [c - bottom + 100 for c in [138, 150, 162, 238, 250, 262]]
-field_centers = [138, 150, 162, 238, 250, 262]
+field_centers = [150, 250]
 
 model_spikes = SpeedSpikes(super_group_name, group_name, "Spikes", lfp, tracking, num_cells, p["ds"], p["dt"],
                            p["phase_range"], p["phase_current"], p["firing_rate_0"], p["firing_rate_slope"],
@@ -173,13 +175,31 @@ model_spikes.generate_spikes()
 p = general_parameters['FiringFields']
 firing_fields = FiringFields(super_group_name, group_name, "FiringFields", model_spikes.spikes, tracking,
                              p['firing_rate_sigma'], p['consecutive_nans_max'], save_figures=False)
+firing_fields.find_fields_candidates(p['min_spikes'], p['min_peak_firing_rate'], p['firing_rate_threshold'],
+                                     p['peak_prominence_threshold'])
+
+path_arrow_color = "#D65F5F"
+field_arrow_color = "#D65F5F"
 
 for field_num, firing_rates in enumerate(firing_fields.smooth_rate_maps):
     normalized_rates = firing_rates[0] / np.nanmax(firing_rates[0])
-    ax[1].plot(normalized_rates, firing_fields.positions, color=colors[field_num])
+    ax[1].plot(normalized_rates, firing_fields.positions, color='C0')
+    field_bounds = firing_fields.cand_bounds[field_num*2]
+    ax[1].axhline(field_bounds[0], color='C7', linestyle='dotted', zorder=0)
+    ax[1].axhline(field_bounds[1], color='C7', linestyle='dotted', zorder=0)
 
-ax[1].axvline(-0.2, color='gray')
-ax[1].axvline(0, color='gray')
+    arrow_x = 1.1
+    ax[1].annotate('', (arrow_x, field_bounds[0]), xytext=(arrow_x, field_bounds[1]),
+                   arrowprops=dict(arrowstyle='<|-|>', shrinkA=0, shrinkB=0,
+                                   facecolor=field_arrow_color, edgecolor=field_arrow_color))
+    ax[1].annotate(f"{field_bounds[1] - field_bounds[0]:.0f}",
+                   (1.2, (field_bounds[0] + field_bounds[1]) / 2),
+                   color=field_arrow_color, verticalalignment='center')
+
+# ax[1].axvline(-0.2, color='gray')
+# ax[1].axvline(0, color='gray')
+ax[1].set_xticks([])
+ax[1].set_yticks([125, 150, 175, 200, 225, 250, 275])
 
 # fig.tight_layout(pad=2, w_pad=5)
 fig.savefig(f"figures/BD_sweep {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}.pdf", bbox_inches='tight')

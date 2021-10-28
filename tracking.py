@@ -401,7 +401,8 @@ class Tracking(Base):
                     speeds[run_type][spatial_bin_num].append(speed)
                     speed_counts[run_type][spatial_bin_num] += 1
 
-        min_speed_count = int(np.percentile(np.array(speed_counts), min_speed_count_percentile))
+        # min_speed_count = int(np.percentile(np.array(speed_counts), min_speed_count_percentile))
+        min_speed_count = 1
 
         self.top_speeds = np.full((2, self.num_spatial_bins), np.nan)
         self.characteristic_speeds = np.full((2, self.num_spatial_bins), np.nan)

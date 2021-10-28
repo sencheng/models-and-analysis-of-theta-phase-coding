@@ -431,7 +431,7 @@ class PhaseVsPosition(Base):
 
     def fit_and_plot(self, positions, phases, run_type, place_field, fit=True, fit_type='orthogonal', min_spikes=2,
                      ax=None, speeds=None, max_speed=None, plot_fitting_steps=False,
-                     fitting_steps_fig_name='fitting_steps', normalize_angle_by_size=False):
+                     fitting_steps_fig_name='fitting_steps', normalize_angle_by_size=False, return_sum_error=False):
         """Do a linear fit of phase vs position.
 
         Args:
@@ -450,6 +450,7 @@ class PhaseVsPosition(Base):
             fitting_steps_fig_name (string): Name for the figure.
             normalize_angle_by_size (bool): Normalize slope to a field size and phase range of 1 before
                 calculating angle.
+            return_sum_error (bool): Return sum square error, only possible for simple_orthogonal.
         """
         if run_type == 1:
             positions = place_field[1] - np.array(positions)
@@ -467,7 +468,8 @@ class PhaseVsPosition(Base):
                 slope, intercept = self.orthogonal_fit(np.copy(positions), np.copy(phases), place_field_size,
                                                        plot_steps=plot_fitting_steps, fig_name=fitting_steps_fig_name)
             elif fit_type == "simple_orthogonal":
-                slope, intercept, _ = self.simple_orthogonal_fit(np.copy(positions), np.copy(phases), place_field_size)
+                slope, intercept, sum_error = \
+                    self.simple_orthogonal_fit(np.copy(positions), np.copy(phases), place_field_size)
             else:
                 print(fit_type)
                 sys.exit("Fit type not recognized")
@@ -479,6 +481,7 @@ class PhaseVsPosition(Base):
             slope = np.nan
             intercept = np.nan
             angle = np.nan
+            sum_error = np.nan
 
         # plot
         if ax is not None:
@@ -498,7 +501,10 @@ class PhaseVsPosition(Base):
             ax.set_xlim([0, place_field_size])
             ax.set_ylim([0, 360])
 
-        return slope, intercept, angle
+        if return_sum_error:
+            return slope, intercept, angle, sum_error
+        else:
+            return slope, intercept, angle
 
     def pool(self, field_num, runs=(), pass_speeds=(), spike_speeds=()):
         """Pool spikes from multiple passes from the field that satisfy certain conditions.
@@ -531,7 +537,7 @@ class PhaseVsPosition(Base):
 
     def pool_all(self, full_speed_groups, fit_type="orthogonal", min_spikes=10, pool_by_pass_speed=False,
                  spike_speed_threshold=True, min_occupancy=0.4, min_spread=0.4, plot_fits=True, fields_per_plot=6,
-                 fig_size=(10, 6), plot_occupancy=False, field_nums=None, constrained_layout=False):
+                 fig_size=(10, 6), plot_occupancy=False, field_nums=None, constrained_layout=False, within_field=True):
         """For each place field provided, pools spikes from runs based on pass speeds. Calculates fits and plots
         the evolution of the phase precession slope with speed for each cell.
 
@@ -563,6 +569,7 @@ class PhaseVsPosition(Base):
         max_speed = np.nanmax(self.tracking.speed_1D)
         slopes = []
         angles = []
+        mean_errors = []
 
         occupancy, smooth_occupancy, max_smooth_occupancies = self.firing_fields.occupancy_by_speed(speed_groups)
         fields_spread = self.firing_fields.fields_spread(self.fields['run_types'], self.fields['bound_indices'],
@@ -595,6 +602,7 @@ class PhaseVsPosition(Base):
 
             field_slopes = []
             field_angles = []
+            field_mean_errors = []
 
             bound_indices = [field_bound_indices[0], field_bound_indices[1] + 1]
 
@@ -651,13 +659,16 @@ class PhaseVsPosition(Base):
 
                 positions, phases, speeds = self.pool(field_num, pass_speeds=pass_speeds, spike_speeds=spike_speeds)
                 fit = occupancy_spread > min_spread
-                slope, _, angle = self.fit_and_plot(positions, phases, run_type, field_bounds, fit, fit_type,
-                                                    min_spikes, ax, speeds, max_speed)
+                slope, _, angle, sum_error = self.fit_and_plot(positions, phases, run_type, field_bounds, fit, fit_type,
+                                                               min_spikes, ax, speeds, max_speed, return_sum_error=True)
                 field_slopes.append(slope)
                 field_angles.append(angle)
+                mean_error = sum_error/positions.size if not np.isnan(slope) else np.nan
+                field_mean_errors.append(mean_error)
 
             slopes.append(field_slopes)
             angles.append(field_angles)
+            mean_errors.append(field_mean_errors)
 
             if plot_fits:
                 ax = axes[int(plotted_field_num/fields_per_plot)][-1, plotted_field_num % fields_per_plot]
@@ -703,12 +714,19 @@ class PhaseVsPosition(Base):
             nans = np.full((len(slopes), num_skipped_speed_groups), np.nan)
             slopes = np.hstack((nans, slopes))
             angles = np.hstack((nans, angles))
+            mean_errors = np.hstack((nans, mean_errors))
         else:
             slopes = np.array(slopes)
             angles = np.array(angles)
+            mean_errors = np.array(mean_errors)
 
         self.maybe_pickle_results(slopes, "slopes", subfolder=f"/pooled")
         self.maybe_pickle_results(angles, "angles", subfolder=f"/pooled")
+        self.maybe_pickle_results(mean_errors, "mean_errors", subfolder=f"/pooled")
+
+        if within_field:
+            self.firing_fields.within_field_increases(speed_groups, self.fields, slopes, "slope_increases",
+                                                      subfolder="pooled")
 
     def single_passes(self, field_num, pass_min_spikes=3, pass_min_duration=0.2, pass_min_spread=0.4,
                       pass_max_variation=0.8, fit_type="orthogonal", plot_fits=False, subplots_per_row=18, fig_width=14,
@@ -892,6 +910,7 @@ class PhaseVsPosition(Base):
         peak_distances_from_start = []
         peak_normalized_pos = []
         peak_distances_to_border = []
+        indices = []
 
         max_speed = np.nanmax(self.tracking.speed_1D)
         for field_num, (run_type, field_bounds) in enumerate(zip(self.fields['run_types'], self.fields['bounds'])):
@@ -911,6 +930,7 @@ class PhaseVsPosition(Base):
             peak_distances_from_start.append(self.fields['distances_from_start'][field_num])
             peak_normalized_pos.append(peak_distances_from_start[-1] / self.tracking.d_runs_span)
             peak_distances_to_border.append(self.fields['distances_to_border'][field_num])
+            indices.append(self.fields['idx'][field_num])
 
         if plot_fits:
             # set x axis limits to the maximum limit
@@ -934,6 +954,7 @@ class PhaseVsPosition(Base):
         self.maybe_pickle_results([peak_distances_from_start], "peak_distances_from_start", subfolder=f"/all_spikes")
         self.maybe_pickle_results([peak_normalized_pos], "peak_normalized_pos", subfolder=f"/all_spikes")
         self.maybe_pickle_results([peak_distances_to_border], "peak_distances_to_border", subfolder=f"/all_spikes")
+        self.maybe_pickle_results([indices], "indices", subfolder=f"/all_spikes")
 
         fig, ax = plt.subplots(2, 4, figsize=summary_fig_size)
         ax[0, 0].scatter(peak_distances_from_start, slopes)

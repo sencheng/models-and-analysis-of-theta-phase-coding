@@ -7,17 +7,15 @@ def run_firing_fields(firing_fields):
     print("Calculating place fields...")
     p = {**general_parameters['ALL'], **general_parameters['FiringFields']}
 
-    # firing_fields.plot_traces(field_nums=(0, 1, 2))
+    # # firing_fields.plot_traces(field_nums=(0, 1, 2))
     firing_fields.plot_heatmap()
 
     firing_fields.field_sizes_by_speed(speed_groups=speed_groups, min_peak_firing_rate=p['min_peak_firing_rate'],
                                        threshold=p['firing_rate_threshold'],
                                        peak_prominence_threshold=p['peak_prominence_threshold'],
-                                       min_occupancy=p['min_occupancy'],
-                                       min_spread=p['min_spread'],
-                                       plot_fields=False,
+                                       min_occupancy=p['min_occupancy'], min_spread=p['min_spread'],
                                        # plot_fields=True, field_nums=(22, 9, 10), fields_per_plot=3,
-                                       # fig_size=(6*cm, 10*cm), constrained_layout=True
+                                       fig_size=(6.5*cm, 10*cm), constrained_layout=True
                                        )
 
     firing_fields.field_sizes_vs_stuff(plot=True)
